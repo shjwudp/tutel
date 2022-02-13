@@ -26,15 +26,11 @@ def one_hot_with_dtype(data, num_classes, dtype):
     result.scatter_(1, data.unsqueeze(-1), 1)
     return result
 
+
 def load_balance(gates, mask1, num_global_experts, fp32_gate):
-    if gates.dtype == torch.float32 or fp32_gate:
-        me = torch.sum(gates.float(), dim=0)
-        ce = torch.sum(mask1.to(me.dtype), dim=0)
-        l_loss = torch.sum(me * ce) * (num_global_experts / (gates.size(0) * gates.size(0)))
-    else:
-        me = torch.mean(gates, dim=0)
-        ce = torch.mean(mask1.to(gates.dtype), dim=0)
-        l_loss = torch.sum(me * ce) * num_global_experts
+    me = torch.mean(gates, dim=0)
+    ce = torch.mean(mask1.to(gates.dtype), dim=0)
+    l_loss = torch.sum(me * ce) * num_global_experts
     return l_loss
 
 
@@ -84,6 +80,9 @@ class TopKGate(torch.nn.Module):
     def apply_on_expert_fn(self, input, expert_fn, group, sharded_count):
         if self.input_dropout:
             input = self.input_dropout(input)
+
+        if self.wg.weight.dtype != torch.float32:
+            self.wg = self.wg.float()
 
         logits = self.wg(input.to(next(iter(self.wg.parameters())).dtype))
 
